@@ -1,0 +1,9 @@
+# environments
+.venv
+.vscode
+
+# Dataste
+dataset
+
+# cache
+__pycache__
