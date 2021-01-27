@@ -69,6 +69,8 @@ O: Available
 X: Currently unavailable (To be tested later)
 
 - [O] Inception V3
+  > pretrained: https://drive.google.com/file/d/1UhXIbqKp6xC2ARxMTsS2rv1Ym1O8NQIe/view?usp=sharing
+  > loss: 0.3095 - accuracy: 0.9792 - val_loss: 0.2536 - val_accuracy: 0.9906
 - [x] mobilenet
 
 ## TEST
