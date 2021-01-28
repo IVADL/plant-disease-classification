@@ -4,27 +4,27 @@ from https://github.com/harimkang/food-image-classifier.
 """
 
 
+from tensorflow.keras import backend
+from tensorflow.keras import regularizers
+from tensorflow.keras.models import Model, load_model
+from tensorflow.keras.optimizers import SGD
+from tensorflow.keras.layers import GlobalAveragePooling2D, Dense, Dropout
+from tensorflow.keras.preprocessing import image
+from tensorflow.keras.applications.inception_v3 import InceptionV3
+from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2
+from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger
+import matplotlib.pyplot as plt
+import numpy as np
+import time
 import os
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # tensorflow logging off
-import time
-import numpy as np
-import matplotlib.pyplot as plt
-
-from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger
-from tensorflow.keras.applications.inception_v3 import InceptionV3
-from tensorflow.keras.preprocessing import image
-from tensorflow.keras.layers import GlobalAveragePooling2D, Dense, Dropout
-from tensorflow.keras.optimizers import SGD
-from tensorflow.keras.models import Model, load_model
-from tensorflow.keras import regularizers
-from tensorflow.keras import backend
 
 
-class Inception_v3:
+class ClassificationModel:
     """
-    [Inception V3 Model]
-    # Class created using inception_v3 provided in keras.applications
+    [Tensorflow Imagenet Model]
+    # Class created using model provided in keras.applications
     """
 
     def __init__(self, class_list, img_width, img_height, batch_size) -> None:
@@ -42,10 +42,11 @@ class Inception_v3:
         self.validation_data = None
         self.num_train_data = None
 
-        self.day_now = time.strftime("%Y%m%d%H%M", time.localtime(time.time()))
+        self.day_now = time.strftime("%Y%m%d%H", time.localtime(time.time()))
         self.checkpointer = None
         self.csv_logger = None
         self.history = None
+        self.model_name = "inception_v3"
 
     def generate_train_val_data(self, data_dir="dataset/train/"):
         """
@@ -81,12 +82,16 @@ class Inception_v3:
             subset="validation",
         )
 
-    def set_model(self):
+    def set_model(self, model_name="inception_v3"):
         """
         # This is a function that composes a model, and proceeds to compile.
         # [Reference] - https://www.tensorflow.org/api_docs/python/tf/keras/applications/inception_v3
         """
-        self.model = InceptionV3(weights="imagenet", include_top=False)
+        if model_name == "inception_v3":
+            self.model = InceptionV3(weights="imagenet", include_top=False)
+        elif model_name == "mobilenet_v2":
+            self.model = MobileNetV2(weights="imagenet", include_top=False)
+            self.model_name = model_name
         x = self.model.output
         x = GlobalAveragePooling2D()(x)
         x = Dense(128, activation="relu")(x)
@@ -114,13 +119,13 @@ class Inception_v3:
 
         os.makedirs(os.path.join('models', 'checkpoint'), exist_ok=True)
         self.checkpointer = ModelCheckpoint(
-            filepath="models/checkpoint/checkpoint_{}.hdf5".format(self.day_now),
+            filepath=f"models/checkpoint/{self.model_name}_checkpoint_{self.day_not}.hdf5",
             verbose=1,
             save_best_only=True,
         )
         os.makedirs(os.path.join('logs', 'training'), exist_ok=True)
         self.csv_logger = CSVLogger(
-            "logs/training/history_model_{}.log".format(self.day_now)
+            f"logs/training/{self.model_name}_history_model_{self.day_now}.log"
         )
 
         self.history = self.model.fit_generator(
@@ -133,8 +138,8 @@ class Inception_v3:
             callbacks=[self.csv_logger, self.checkpointer],
         )
 
-        self.model.save("models/model_{}.hdf5".format(self.day_now))
-        
+        self.model.save(f"models/{self.model_name}_model_{self.day_now}.hdf5")
+
         return self.history
 
     def evaluation(self, batch_size=16, data_dir="test/", steps=5):
@@ -151,7 +156,8 @@ class Inception_v3:
             )
             scores = self.model.evaluate_generator(test_generator, steps=steps)
             print("Evaluation data: {}".format(data_dir))
-            print("%s: %.2f%%" % (self.model.metrics_names[1], scores[1] * 100))
+            print("%s: %.2f%%" %
+                  (self.model.metrics_names[1], scores[1] * 100))
         else:
             print("Model not found... : load_model or train plz")
 
@@ -163,7 +169,8 @@ class Inception_v3:
         target_name = target_name.split("/")[-1]
         save_time = time.strftime("%Y%m%d%H%M%S", time.localtime(time.time()))
 
-        img = image.load_img(img_path, target_size=(self.img_height, self.img_width))
+        img = image.load_img(img_path, target_size=(
+            self.img_height, self.img_width))
         img = image.img_to_array(img)
         img = np.expand_dims(img, axis=0)
         img /= 255.0
@@ -177,12 +184,13 @@ class Inception_v3:
                 plt.imshow(img[0])
                 plt.axis("off")
                 plt.title("prediction: {}".format(pred_value))
-                print("[Model Prediction] {}: {}".format(target_name, pred_value))
+                print("[Model Prediction] {}: {}".format(
+                    target_name, pred_value))
                 plt.show()
                 if save:
                     os.makedirs('results', exist_ok=True)
                     plt.savefig(
-                        "results/example_{}_{}.png".format(target_name, save_time)
+                        f"results/{self.model_name}_example_{target_name}_{save_time}.png"
                     )
             return 1
         else:
@@ -218,7 +226,7 @@ class Inception_v3:
         # TO DO: In the case of a loaded model, a function to find and display the graph is added
         """
         if self.history is not None:
-            title = "model_accuracy_{}".format(self.day_now)
+            title = f"model_accuracy_{self.day_now}"
             plt.title(title)
             plt.plot(self.history.history["accuracy"])
             plt.plot(self.history.history["val_accuracy"])
@@ -226,7 +234,9 @@ class Inception_v3:
             plt.xlabel("epoch")
             plt.legend(["train_acc", "val_acc"], loc="best")
             plt.show()
-            plt.savefig("results/accuracy_model_{}.png".format(self.day_now))
+            os.makedirs('results', exist_ok=True)
+            plt.savefig(
+                f"results/accuracy_{self.model_name}_model_{self.day_now}.png")
         else:
             print("Model not found... : load_model or train plz")
 
@@ -236,7 +246,7 @@ class Inception_v3:
         # TO DO: In the case of a loaded model, a function to find and display the graph is added
         """
         if self.history is not None:
-            title = "model_loss_{}".format(self.day_now)
+            title = f"model_loss_{self.day_now}"
             plt.title(title)
             plt.plot(self.history.history["loss"])
             plt.plot(self.history.history["val_loss"])
@@ -244,6 +254,8 @@ class Inception_v3:
             plt.xlabel("epoch")
             plt.legend(["train_loss", "val_loss"], loc="best")
             plt.show()
-            plt.savefig("results/loss_model_{}.png".format(self.day_now))
+            os.makedirs('results', exist_ok=True)
+            plt.savefig(
+                f"results/loss_{self.model_name}_model_{self.day_now}.png".format())
         else:
             print("Model not found... : load_model or train plz")
